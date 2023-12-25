@@ -15,14 +15,19 @@ defmodule WalEx.Replication.Server do
     Postgrex.ReplicationConnection.start_link(__MODULE__, [app_name: app_name], opts)
   end
 
+  def get_wal_end(app_name) do
+    Postgrex.ReplicationConnection.call(name(app_name), :get_wal_end)
+  end
+
+  defp name(app_name) do
+    WalExRegistry.set_name(:set_gen_server, __MODULE__, app_name)
+  end
+
   defp set_pgx_replication_conn_opts(app_name) do
     database_configs_keys = [:hostname, :username, :password, :port, :database, :ssl, :ssl_opts]
     extra_opts = [auto_reconnect: true]
     database_configs = WalEx.Config.get_configs(app_name, database_configs_keys)
-
-    replications_name = [
-      name: WalExRegistry.set_name(:set_gen_server, __MODULE__, app_name)
-    ]
+    replications_name = [name: name(app_name)]
 
     extra_opts ++ database_configs ++ replications_name
   end
@@ -35,7 +40,19 @@ defmodule WalEx.Replication.Server do
       {:ok, _pid} = Publisher.start_link([])
     end
 
-    {:ok, %{step: :disconnected, app_name: app_name}}
+    {:ok, %{step: :disconnected, app_name: app_name, wal_end: nil}}
+  end
+
+  @impl true
+  def handle_call(:get_wal_end, from, %{wal_end: nil} = state) do
+    Postgrex.ReplicationConnection.reply(from, nil)
+    {:noreply, state}
+  end
+
+  def handle_call(:get_wal_end, from, %{wal_end: wal_end} = state) do
+    {:ok, encoded_wal} = Postgrex.ReplicationConnection.encode_lsn(wal_end)
+    Postgrex.ReplicationConnection.reply(from, encoded_wal)
+    {:noreply, state}
   end
 
   @impl true
@@ -64,12 +81,12 @@ defmodule WalEx.Replication.Server do
 
   @impl true
   # https://www.postgresql.org/docs/14/protocol-replication.html
-  def handle_data(<<?w, _wal_start::64, _wal_end::64, _clock::64, rest::binary>>, state) do
+  def handle_data(<<?w, _wal_start::64, wal_end::64, _clock::64, rest::binary>>, state) do
     rest
     |> Decoder.decode_message()
     |> Publisher.process_message(state.app_name)
 
-    {:noreply, state}
+    {:noreply, Map.put(state, :wal_end, wal_end)}
   end
 
   def handle_data(<<?k, wal_end::64, _clock::64, reply>>, state) do
@@ -79,7 +96,7 @@ defmodule WalEx.Replication.Server do
         0 -> []
       end
 
-    {:noreply, messages, state}
+    {:noreply, messages, Map.put(state, :wal_end, wal_end)}
   end
 
   @epoch DateTime.to_unix(~U[2000-01-01 00:00:00Z], :microsecond)
