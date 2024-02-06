@@ -4,6 +4,7 @@ defmodule WalEx.Replication.Publisher do
   """
   use GenServer
 
+  alias WalEx.Config.Registry, as: WalExRegistry
   alias WalEx.{Changes, Destinations, Events, Types}
   alias WalEx.Postgres.Decoder.Messages
 
@@ -18,16 +19,20 @@ defmodule WalEx.Replication.Publisher do
 
   defstruct [:relations]
 
+  def name() do
+    WalExRegistry.set_name(__MODULE__)
+  end
+
   def start_link(args) do
-    GenServer.start_link(__MODULE__, args, name: __MODULE__)
+    GenServer.start_link(__MODULE__, args, name: name())
   end
 
   def process_message(message, app_name) do
-    GenServer.cast(__MODULE__, %{message: message, app_name: app_name})
+    GenServer.cast(name(), %{message: message, app_name: app_name})
   end
 
   def check_mailbox() do
-    GenServer.call(__MODULE__, :check_mailbox)
+    GenServer.call(name(), :check_mailbox)
   end
 
   @impl true

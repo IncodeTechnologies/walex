@@ -2,6 +2,7 @@ defmodule WalEx.Replication.Supervisor do
   use Supervisor
 
   alias WalEx.Replication.Server
+  alias WalEx.Replication.Publisher
 
   def start_link(opts) do
     app_name = Keyword.get(opts, :app_name)
@@ -17,7 +18,10 @@ defmodule WalEx.Replication.Supervisor do
       |> Keyword.get(:configs)
       |> Keyword.get(:app_name)
 
-    children = [{Server, app_name: app_name}]
+    children = [
+      {Server, app_name: app_name},
+      Publisher
+    ]
 
     Supervisor.init(children, strategy: :one_for_all)
   end
