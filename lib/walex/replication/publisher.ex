@@ -26,11 +26,20 @@ defmodule WalEx.Replication.Publisher do
     GenServer.cast(__MODULE__, %{message: message, app_name: app_name})
   end
 
+  def check_mailbox() do
+    GenServer.call(__MODULE__, :check_mailbox)
+  end
+
   @impl true
   def init(_) do
     Process.flag(:message_queue_data, :off_heap)
 
     {:ok, %State{}}
+  end
+
+  @impl true
+  def handle_call(:check_mailbox, _from, %State{} = state) do
+    {:reply, :ok, state}
   end
 
   @impl true
@@ -58,9 +67,9 @@ defmodule WalEx.Replication.Publisher do
     Events.process(txn, app_name)
     Destinations.process(txn, app_name)
 
-    %{state | transaction: nil}
+    updated_state = %State{state | transaction: nil}
 
-    {:noreply, state}
+    {:noreply, updated_state}
   end
 
   @impl true
