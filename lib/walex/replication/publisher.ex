@@ -245,10 +245,12 @@ defmodule WalEx.Replication.Publisher do
         end
       end)
 
-    %State{
+    updated_state = %State{
       state
       | transaction: {lsn, %{txn | changes: new_changes}}
     }
+
+    {:noreply, updated_state}
   end
 
   @impl true
