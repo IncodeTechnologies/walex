@@ -26,7 +26,7 @@ defmodule WalEx.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:postgrex, "~> 0.17.4"},
+      {:postgrex, "~> 0.19.3"},
       {:decimal, "~> 2.1.1"},
       {:ex_doc, "~> 0.31.0", only: :dev, runtime: false},
       {:jason, "~> 1.4"},
